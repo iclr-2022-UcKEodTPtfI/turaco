@@ -1,0 +1,81 @@
+fun (
+  rimLight[4], isCelShadingEnabled[2], sunPosition[2],
+  gamma[2], worldNormal[3], ssao[3],
+  diffuseColor[4],
+  diffuse[4], specular[4],
+  emission[3], isWater[2], isParticle[2]
+) {
+  sunPosition := sin(mul(sunPosition[0], mul(pi, 0.005555555556)));
+  sunMixFactor = add(1.0, neg(add(mul(sunPosition, 0.5), 0.5)));
+  sunMixFactor = add(0.5, neg(mul(sunPosition, 0.5)));
+
+  ambientCoolBase := exp(mul(log(add((0.302, 0.451, 0.471), -1)), gamma[0]));
+  //ambientCoolBase := exp(mul((-1.19732826, -0.79628794, -0.75289718), gamma[0]));
+
+  ambientWarmBase := exp(mul(log(add((0.765, 0.573, 0.400), -1)), gamma[0]));
+  // ambientWarmBase := exp(mul((-0.26787945, -0.55686956, -0.91629073), gamma[0]));
+
+  // this is okay because sunMixFactor is a function of sunPosition and pi which are uniform
+  if (0.5 > sunMixFactor) {
+    ambientCool := mul(ambientCoolBase, 0.5);
+    ambientWarm := mul(ambientWarmBase, 0.5);
+  } else {
+    ambientCool := mul(ambientCoolBase, sunMixFactor);
+    ambientWarm := mul(ambientWarmBase, sunMixFactor);
+  }
+
+
+  if (0 > sunMixFactor) {
+    skyLight := ambientCool;
+    groundLight := ambientWarm;
+  } else {
+    if (sunMixFactor > 1) {
+      skyLight := ambientWarm;
+      groundLight := ambientCool;
+    } else {
+      skyLight := add(mul(ambientCool, add(1, neg(sunMixFactor))), mul(ambientWarm, sunMixFactor));
+      groundLight := add(mul(ambientWarm, add(1, neg(sunMixFactor))), mul(ambientCool, sunMixFactor));
+    }
+  }
+
+  // vec3 worldNormal = normalize((trans_view_to_world * vec4(normal, 0.0)).xyz);
+
+  // note: -1 <= worldNormal[2] <= 1
+  // so 0 <= mixfactor <= 1
+
+  worldNormalMixFactor := mul(0.5, add(1.0, worldNormal[2]));
+  ambientLight := add(mul(groundLight, add(1, neg(worldNormalMixFactor))), mul(skyLight, worldNormalMixFactor));
+
+
+  ambient := mul(ambientLight, mul((diffuseColor[0], diffuseColor[1], diffuseColor[2]), ssao));
+
+
+  // translate from if (0.1 > sunPositionPow) to avoid undefined behavior
+  if (0.00316228 > sunPosition) {
+    emission := mul(emission, 0.1)
+  } else {
+    // assert: 0.00316228 < sunPosition < 1
+    sunPositionPow := exp(mul(log(add(sunPosition, -1)), 0.4));
+    emission := mul(emission, sunPositionPow)
+  }
+
+  out0rgb := add(add((ambient[0], ambient[1], ambient[2]), (diffuse[0], diffuse[1], diffuse[2])),
+                 add((rimLight[0], rimLight[1], rimLight[2]), emission));
+
+  if (isWater[0] > 0) {
+    out0a := 0;
+  } else {
+    out0a := diffuseColor[3];
+  }
+
+  out1a   = diffuseColor[3];
+
+  if (isParticle[0] > 0) {
+    out1rgb = (0,0,0);
+  } else {
+    out1rgb = (specular[0], specular[1], specular[2]);
+  }
+
+  out := (out0rgb[0], out0rgb[1], out0rgb[2], out0a, out1rgb[0], out1rgb[1], out1rgb[2], out1a);
+
+}  return out;
